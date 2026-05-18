@@ -1,119 +1,234 @@
 // app/(staff)/production/page.tsx
-import type { Metadata } from 'next';
-import { Plus, Filter, Download } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+// Fully connected production management page.
+// All data is live from the API — no hardcoded placeholder data.
+'use client';
+
+import { useState } from 'react';
+import { Plus, Download, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { formatNaira, formatDate } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ProductionSummaryCards } from '@/components/production/ProductionSummaryCards';
+import { ProductionTable } from '@/components/production/ProductionTable';
+import { ProductionFormModal } from '@/components/production/ProductionFormModal';
+import { DeleteConfirmDialog } from '@/components/production/DeleteConfirmDialog';
+import { useToast } from '@/components/ui/toast';
+import { useAuth } from '@/context/AuthContext';
+import {
+  useProductionList,
+  useProductionSummary,
+  useProductionMutations,
+} from '@/hooks/useProduction';
+import { Production, CreateProductionDto } from '@/types';
 
-export const metadata: Metadata = { title: 'Production' };
-
-// Placeholder data — will be replaced by API calls in Sprint 2
-const productionLogs = [
-  {
-    id: '1',
-    date: '2024-12-15T08:00:00Z',
-    bagsProduced: 240,
-    bagsSold: 198,
-    damagedBags: 4,
-    remainingStock: 38,
-    sellingPrice: 500,
-    totalSales: 99000,
-    user: { fullName: 'Operations Staff' },
-  },
-  {
-    id: '2',
-    date: '2024-12-14T08:00:00Z',
-    bagsProduced: 220,
-    bagsSold: 210,
-    damagedBags: 2,
-    remainingStock: 8,
-    sellingPrice: 500,
-    totalSales: 105000,
-    user: { fullName: 'Operations Staff' },
-  },
-];
+type Period = 'today' | 'week' | 'month' | 'all';
 
 export default function ProductionPage() {
+  const { user }    = useAuth();
+  const { toast }   = useToast();
+
+  // ─── Filter state ──────────────────────────────────────────────────────────
+  const [period,    setPeriod]    = useState<Period>('today');
+  const [page,      setPage]      = useState(1);
+  const [dateFrom,  setDateFrom]  = useState('');
+  const [dateTo,    setDateTo]    = useState('');
+
+  // ─── Modal state ───────────────────────────────────────────────────────────
+  const [formOpen,        setFormOpen]        = useState(false);
+  const [deleteOpen,      setDeleteOpen]      = useState(false);
+  const [editingLog,      setEditingLog]      = useState<Production | null>(null);
+  const [deletingLog,     setDeletingLog]     = useState<Production | null>(null);
+
+  // ─── Data hooks ────────────────────────────────────────────────────────────
+  const { summary, isLoading: summaryLoading, refetch: refetchSummary } =
+    useProductionSummary(period);
+
+  const { logs, pagination, isLoading: logsLoading, refetch: refetchLogs } =
+    useProductionList({
+      page,
+      limit: 20,
+      from: dateFrom || undefined,
+      to:   dateTo   || undefined,
+    });
+
+  const { createLog, updateLog, deleteLog, isSubmitting, error: mutationError, setError } =
+    useProductionMutations();
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
+
+  function openCreate() {
+    setEditingLog(null);
+    setError(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(log: Production) {
+    setEditingLog(log);
+    setError(null);
+    setFormOpen(true);
+  }
+
+  function openDelete(log: Production) {
+    setDeletingLog(log);
+    setDeleteOpen(true);
+  }
+
+  async function handleFormSubmit(data: CreateProductionDto) {
+    if (editingLog) {
+      const updated = await updateLog(editingLog.id, data);
+      if (updated) {
+        toast('Production log updated successfully', 'success');
+        setFormOpen(false);
+        refetchLogs();
+        refetchSummary();
+      }
+    } else {
+      const created = await createLog(data);
+      if (created) {
+        toast('Production log saved successfully', 'success');
+        setFormOpen(false);
+        refetchLogs();
+        refetchSummary();
+      }
+    }
+  }
+
+  async function handleDelete() {
+    if (!deletingLog) return;
+    const ok = await deleteLog(deletingLog.id);
+    if (ok) {
+      toast('Production log deleted', 'success');
+      setDeleteOpen(false);
+      setDeletingLog(null);
+      refetchLogs();
+      refetchSummary();
+    } else {
+      toast(mutationError ?? 'Failed to delete log', 'error');
+    }
+  }
+
+  function handleApplyDateFilter() {
+    setPage(1);
+    refetchLogs();
+  }
+
+  function handleClearDateFilter() {
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Production Logs</h2>
-          <p className="text-muted-foreground mt-1">Track daily ice block production and sales.</p>
+          <p className="text-muted-foreground mt-1">
+            Track daily ice block production and sales.
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Log Production
-          </Button>
+          {(user?.role === 'super_admin' || user?.role === 'operations') && (
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Log Production
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Production Records</CardTitle>
-          <CardDescription>All production entries sorted by date</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  {['Date', 'Produced', 'Sold', 'Damaged', 'Remaining', 'Price/Bag', 'Total Sales', 'Logged by'].map(
-                    (h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {productionLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-medium whitespace-nowrap">{formatDate(log.date)}</td>
-                    <td className="px-4 py-3">{log.bagsProduced}</td>
-                    <td className="px-4 py-3 text-emerald-600 font-medium">{log.bagsSold}</td>
-                    <td className="px-4 py-3">
-                      {log.damagedBags > 0 ? (
-                        <Badge variant="destructive">{log.damagedBags}</Badge>
-                      ) : (
-                        <Badge variant="success">0</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">{log.remainingStock}</td>
-                    <td className="px-4 py-3">{formatNaira(log.sellingPrice)}</td>
-                    <td className="px-4 py-3 font-semibold text-primary">{formatNaira(log.totalSales)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{log.user.fullName}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* Period selector tabs */}
+      <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 w-fit">
+        {(['today', 'week', 'month', 'all'] as Period[]).map((p) => (
+          <button
+            key={p}
+            onClick={() => { setPeriod(p); setPage(1); }}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${
+              period === p
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {p === 'all' ? 'All Time' : p === 'today' ? 'Today' : `This ${p.charAt(0).toUpperCase() + p.slice(1)}`}
+          </button>
+        ))}
+      </div>
 
-          {/* Empty state */}
-          {productionLogs.length === 0 && (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">No production logs yet.</p>
-              <Button className="mt-4" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Log First Production
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Summary cards */}
+      <ProductionSummaryCards summary={summary} isLoading={summaryLoading} />
+
+      {/* Date range filter */}
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
+        <Calendar className="h-4 w-4 text-muted-foreground self-center mt-5" />
+        <div className="space-y-1.5">
+          <Label className="text-xs">From</Label>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-9 w-40 text-sm"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">To</Label>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-9 w-40 text-sm"
+          />
+        </div>
+        <Button size="sm" onClick={handleApplyDateFilter} className="h-9">
+          Apply Filter
+        </Button>
+        {(dateFrom || dateTo) && (
+          <Button size="sm" variant="ghost" onClick={handleClearDateFilter} className="h-9">
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {/* Production table */}
+      <ProductionTable
+        logs={logs}
+        pagination={pagination}
+        isLoading={logsLoading}
+        userRole={user?.role ?? 'delivery'}
+        onEdit={openEdit}
+        onDelete={openDelete}
+        onPageChange={setPage}
+        onAddNew={openCreate}
+      />
+
+      {/* Create / Edit modal */}
+      <ProductionFormModal
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSubmit={handleFormSubmit}
+        isSubmitting={isSubmitting}
+        editData={editingLog}
+        serverError={mutationError}
+      />
+
+      {/* Delete confirmation */}
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onClose={() => { setDeleteOpen(false); setDeletingLog(null); }}
+        onConfirm={handleDelete}
+        isDeleting={isSubmitting}
+        title="Delete production log?"
+        description={
+          deletingLog
+            ? `This will permanently delete the log for ${new Date(deletingLog.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}. This cannot be undone.`
+            : 'This action cannot be undone.'
+        }
+      />
     </div>
   );
 }

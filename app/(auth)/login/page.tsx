@@ -9,15 +9,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { authApi, tokenStorage, ApiError } from '@/lib/api';
+import { authApi, ApiError } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router     = useRouter();
+  const { setAuth } = useAuth();
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading,    setIsLoading]    = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [form,         setForm]         = useState({ email: '', password: '' });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -28,20 +30,14 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-
     try {
-      const response = await authApi.login(form);
-      if (response.data) {
-        tokenStorage.set(response.data.token);
-        localStorage.setItem('freezeflow_user', JSON.stringify(response.data.user));
+      const res = await authApi.login(form);
+      if (res.data) {
+        setAuth(res.data.token, res.data.user);
         router.push('/dashboard');
       }
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Login failed. Please try again.');
-      }
+      setError(err instanceof ApiError ? err.message : 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -64,15 +60,9 @@ export default function LoginPage() {
           <div className="space-y-2">
             <Label htmlFor="email">Email address</Label>
             <Input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="you@freezeflow.com"
-              required
-              value={form.email}
-              onChange={handleChange}
-              disabled={isLoading}
+              id="email" name="email" type="email" autoComplete="email"
+              placeholder="you@freezeflow.com" required
+              value={form.email} onChange={handleChange} disabled={isLoading}
             />
           </div>
 
@@ -80,15 +70,10 @@ export default function LoginPage() {
             <Label htmlFor="password">Password</Label>
             <div className="relative">
               <Input
-                id="password"
-                name="password"
+                id="password" name="password"
                 type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder="••••••••"
-                required
-                value={form.password}
-                onChange={handleChange}
-                disabled={isLoading}
+                autoComplete="current-password" placeholder="••••••••" required
+                value={form.password} onChange={handleChange} disabled={isLoading}
                 className="pr-10"
               />
               <button
@@ -102,19 +87,29 @@ export default function LoginPage() {
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Signing in…</>
-            ) : (
-              <><LogIn className="h-4 w-4 mr-2" />Sign In</>
-            )}
+            {isLoading
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Signing in…</>
+              : <><LogIn className="h-4 w-4 mr-2" />Sign In</>
+            }
           </Button>
         </form>
 
-        <div className="mt-6 rounded-md bg-muted/50 p-3 text-xs space-y-1">
+        {/* Demo credentials box */}
+        <div className="mt-6 rounded-md bg-muted/50 p-3 text-xs space-y-1.5">
           <p className="font-semibold text-muted-foreground">Demo credentials:</p>
-          <p><span className="font-medium">Super Admin:</span> admin@freezeflow.com / password123</p>
-          <p><span className="font-medium">Operations:</span> ops@freezeflow.com / password123</p>
+          <div className="space-y-1">
+            <p><span className="font-medium">Super Admin:</span> admin@freezeflow.com / password123</p>
+            <p><span className="font-medium">Operations:</span>  ops@freezeflow.com / password123</p>
+            <p><span className="font-medium">Delivery:</span>    delivery@freezeflow.com / password123</p>
+          </div>
         </div>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Need a new account?{' '}
+          <Link href="/register" className="text-primary hover:underline font-medium">
+            Register here
+          </Link>
+        </p>
       </CardContent>
     </Card>
   );

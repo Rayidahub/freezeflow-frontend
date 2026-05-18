@@ -1,75 +1,73 @@
 // app/(staff)/dashboard/page.tsx
-import type { Metadata } from 'next';
-import {
-  TrendingUp,
-  TrendingDown,
-  Package,
-  ShoppingCart,
-  DollarSign,
-  AlertCircle,
-} from 'lucide-react';
+// Dashboard with live data from the production summary API.
+'use client';
+
+import { TrendingUp, TrendingDown, Package, ShoppingCart, DollarSign, Layers, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { formatNaira } from '@/lib/utils';
+import { useProductionSummary, useProductionList } from '@/hooks/useProduction';
+import { useAuth } from '@/context/AuthContext';
 
-export const metadata: Metadata = { title: 'Dashboard' };
+function StatCard({
+  label, value, icon: Icon, colorText, colorBg, subLabel,
+}: {
+  label: string; value: string; subLabel?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  colorText: string; colorBg: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colorBg}`}>
+          <Icon className={`h-4 w-4 ${colorText}`} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-bold">{value}</p>
+        {subLabel && <p className="text-xs text-muted-foreground mt-1">{subLabel}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
-// Placeholder stats — will be fetched from API in Sprint 2
-const stats = [
-  {
-    label: 'Bags Produced Today',
-    value: '240',
-    change: '+12%',
-    trend: 'up',
-    icon: Package,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
-  },
-  {
-    label: 'Bags Sold Today',
-    value: '198',
-    change: '+8%',
-    trend: 'up',
-    icon: ShoppingCart,
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50',
-  },
-  {
-    label: "Today's Revenue",
-    value: formatNaira(99000),
-    change: '+8%',
-    trend: 'up',
-    icon: DollarSign,
-    color: 'text-violet-600',
-    bg: 'bg-violet-50',
-  },
-  {
-    label: "Today's Expenses",
-    value: formatNaira(34500),
-    change: '-3%',
-    trend: 'down',
-    icon: TrendingDown,
-    color: 'text-red-600',
-    bg: 'bg-red-50',
-  },
-];
-
-const recentActivity = [
-  { id: 1, action: 'Production log added', user: 'Operations Staff', time: '2 min ago', type: 'production' },
-  { id: 2, action: 'Expense recorded: Fuel', user: 'Operations Staff', time: '1 hr ago', type: 'expense' },
-  { id: 3, action: 'New order: 5 × Large Ice Block', user: 'System', time: '2 hr ago', type: 'order' },
-  { id: 4, action: 'Delivery completed', user: 'Delivery Staff', time: '3 hr ago', type: 'delivery' },
-];
+function StatCardSkeleton() {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <Skeleton className="h-4 w-28 mb-3" />
+        <Skeleton className="h-8 w-20" />
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+
+  const { summary: todaySummary,  isLoading: todayLoading }  = useProductionSummary('today');
+  const { summary: monthSummary,  isLoading: monthLoading }  = useProductionSummary('month');
+  const { logs: recentLogs,       isLoading: logsLoading }   = useProductionList({ limit: 5 });
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
     <div className="space-y-6">
-      {/* Page header */}
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Good morning 👋</h2>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {greeting()}, {user?.fullName?.split(' ')[0] ?? 'there'} 👋
+          </h2>
           <p className="text-muted-foreground mt-1">
-            Here's what's happening at FreezeFlow today.
+            Here&apos;s what&apos;s happening at FreezeFlow today.
           </p>
         </div>
         <Badge variant="info" className="hidden sm:flex">
@@ -77,100 +75,126 @@ export default function DashboardPage() {
         </Badge>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.label}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.label}
-                </CardTitle>
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${stat.bg}`}>
-                  <Icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="flex items-center gap-1 mt-1">
-                  {stat.trend === 'up' ? (
-                    <TrendingUp className="h-3 w-3 text-emerald-600" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-red-600" />
-                  )}
-                  <p className={`text-xs ${stat.trend === 'up' ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {stat.change} from yesterday
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+      {/* Today stats */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Today</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {todayLoading ? (
+            [...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)
+          ) : (
+            <>
+              <StatCard
+                label="Bags Produced"
+                value={(todaySummary?.bagsProduced ?? 0).toLocaleString()}
+                icon={Package}
+                colorText="text-blue-600" colorBg="bg-blue-50"
+                subLabel="units produced today"
+              />
+              <StatCard
+                label="Bags Sold"
+                value={(todaySummary?.bagsSold ?? 0).toLocaleString()}
+                icon={ShoppingCart}
+                colorText="text-emerald-600" colorBg="bg-emerald-50"
+                subLabel="units sold today"
+              />
+              <StatCard
+                label="Today's Revenue"
+                value={formatNaira(todaySummary?.totalSales ?? 0)}
+                icon={DollarSign}
+                colorText="text-violet-600" colorBg="bg-violet-50"
+                subLabel="from production sales"
+              />
+              <StatCard
+                label="Current Stock"
+                value={(todaySummary?.currentStock ?? 0).toLocaleString()}
+                icon={Layers}
+                colorText="text-cyan-600" colorBg="bg-cyan-50"
+                subLabel="bags remaining"
+              />
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Content row */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Stock Alert */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertCircle className="h-4 w-4 text-amber-500" />
-              Stock Summary
-            </CardTitle>
-            <CardDescription>Current inventory status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { label: 'Small Ice Block (5kg)', stock: 42, max: 100 },
-              { label: 'Large Ice Block (10kg)', stock: 18, max: 80 },
-              { label: 'Extra Large (25kg)', stock: 7, max: 40 },
-            ].map((item) => (
-              <div key={item.label}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-medium">{item.label}</span>
-                  <span className="text-muted-foreground">{item.stock} / {item.max}</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      item.stock / item.max < 0.2
-                        ? 'bg-red-500'
-                        : item.stock / item.max < 0.5
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${(item.stock / item.max) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Recent Activity</CardTitle>
-            <CardDescription>Latest operations log</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {recentActivity.map((activity) => (
-                <li key={activity.id} className="flex items-start gap-3">
-                  <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{activity.action}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.user} · {activity.time}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+      {/* Monthly stats */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">This Month</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {monthLoading ? (
+            [...Array(3)].map((_, i) => <StatCardSkeleton key={i} />)
+          ) : (
+            <>
+              <StatCard
+                label="Total Produced"
+                value={(monthSummary?.bagsProduced ?? 0).toLocaleString()}
+                icon={Package}
+                colorText="text-blue-600" colorBg="bg-blue-50"
+                subLabel={`across ${monthSummary?.totalLogs ?? 0} production days`}
+              />
+              <StatCard
+                label="Total Revenue"
+                value={formatNaira(monthSummary?.totalSales ?? 0)}
+                icon={DollarSign}
+                colorText="text-violet-600" colorBg="bg-violet-50"
+                subLabel="monthly production sales"
+              />
+              <StatCard
+                label="Damaged Bags"
+                value={(monthSummary?.damagedBags ?? 0).toLocaleString()}
+                icon={AlertTriangle}
+                colorText="text-amber-600" colorBg="bg-amber-50"
+                subLabel="total losses this month"
+              />
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Recent Production Logs */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recent Production Logs</CardTitle>
+          <CardDescription>Last 5 entries from your team</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {logsLoading ? (
+            <div className="p-6 space-y-3">
+              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          ) : recentLogs.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground text-sm">
+              No production logs yet. Head to the Production page to add the first one.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border bg-muted/50">
+                  <tr>
+                    {['Date', 'Produced', 'Sold', 'Revenue', 'Stock'].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {recentLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">
+                        {new Date(log.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                      </td>
+                      <td className="px-4 py-3">{log.bagsProduced}</td>
+                      <td className="px-4 py-3 text-emerald-600 font-medium">{log.bagsSold}</td>
+                      <td className="px-4 py-3 text-primary font-semibold">{formatNaira(log.totalSales)}</td>
+                      <td className="px-4 py-3">{log.remainingStock}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

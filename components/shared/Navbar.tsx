@@ -1,52 +1,52 @@
-// components/shared/Navbar.tsx
 'use client';
+// components/shared/Navbar.tsx
 
-import { Bell, Search, User, Menu } from 'lucide-react';
+import { Bell, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useAuth } from '@/context/AuthContext';
+import { usePathname } from 'next/navigation';
+
+const pageTitles: Record<string, string> = {
+  '/dashboard':  'Dashboard',
+  '/production': 'Production Logs',
+  '/expenses':   'Expenses',
+};
 
 interface NavbarProps {
-  title?: string;
   onMenuClick?: () => void;
 }
 
-export function Navbar({ title = 'Dashboard', onMenuClick }: NavbarProps) {
+export function Navbar({ onMenuClick }: NavbarProps) {
+  const { user }   = useAuth();
+  const pathname   = usePathname();
+  const title      = pageTitles[pathname] ?? 'FreezeFlow Ops';
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      {/* Left: mobile menu + title */}
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden"
-          onClick={onMenuClick}
-        >
+        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
         </Button>
         <h1 className="text-lg font-semibold">{title}</h1>
       </div>
 
-      {/* Centre: search (hidden on mobile) */}
-      <div className="hidden md:flex flex-1 max-w-sm mx-8">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            className="pl-9 bg-muted/50"
-          />
-        </div>
-      </div>
-
-      {/* Right: actions */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          {/* Notification dot */}
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive" />
-        </Button>
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon">
-          <User className="h-5 w-5" />
+          <Bell className="h-5 w-5" />
         </Button>
+        {user && (
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:block text-right">
+              <p className="text-sm font-medium leading-none">{user.fullName}</p>
+              <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                {user.role.replace('_', ' ')}
+              </p>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-bold">
+              {user.fullName.charAt(0).toUpperCase()}
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

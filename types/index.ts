@@ -6,156 +6,151 @@
 export type UserRole = 'super_admin' | 'operations' | 'delivery';
 
 export type ExpenseType =
-  | 'fuel'
-  | 'electricity'
-  | 'water'
-  | 'nylon'
-  | 'transportation'
-  | 'labor'
-  | 'maintenance'
-  | 'miscellaneous';
+  | 'fuel' | 'electricity' | 'water' | 'nylon'
+  | 'transportation' | 'labor' | 'maintenance' | 'miscellaneous';
 
-export type DeliveryMethod = 'delivery' | 'pickup';
-
-export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'processing'
-  | 'out_for_delivery'
-  | 'delivered'
-  | 'cancelled';
-
-export type PaymentStatus = 'unpaid' | 'paid' | 'failed' | 'refunded';
-export type PaymentMethod = 'card' | 'bank_transfer' | 'ussd' | 'cash';
+export type DeliveryMethod  = 'delivery' | 'pickup';
+export type OrderStatus     = 'pending' | 'confirmed' | 'processing' | 'out_for_delivery' | 'delivered' | 'cancelled';
+export type PaymentStatus   = 'unpaid' | 'paid' | 'failed' | 'refunded';
+export type PaymentMethod   = 'card' | 'bank_transfer' | 'ussd' | 'cash';
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export interface StaffUser {
-  id: string;
-  fullName: string;
-  email: string;
-  role: UserRole;
+  id:        string;
+  fullName:  string;
+  email:     string;
+  role:      UserRole;
   createdAt?: string;
 }
 
-export interface AuthState {
-  user: StaffUser | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-}
-
 export interface LoginCredentials {
-  email: string;
+  email:    string;
   password: string;
 }
 
 export interface AuthResponse {
   token: string;
-  user: StaffUser;
+  user:  StaffUser;
 }
 
 // ─── Production ───────────────────────────────────────────────────────────────
 
 export interface Production {
-  id: string;
-  date: string;
-  bagsProduced: number;
-  bagsSold: number;
-  damagedBags: number;
+  id:             string;
+  date:           string;
+  bagsProduced:   number;
+  bagsSold:       number;
+  damagedBags:    number;
   remainingStock: number;
-  sellingPrice: number;
-  totalSales: number;
-  userId: string;
-  createdAt: string;
-  user?: StaffUser;
+  sellingPrice:   number;
+  totalSales:     number;
+  userId:         string;
+  createdAt:      string;
+  user?: Pick<StaffUser, 'id' | 'fullName' | 'email'>;
 }
 
 export interface CreateProductionDto {
-  date: string;
-  bagsProduced: number;
-  bagsSold: number;
-  damagedBags?: number;
+  date:           string;
+  bagsProduced:   number;
+  bagsSold:       number;
+  damagedBags:    number;
   remainingStock: number;
-  sellingPrice: number;
-  totalSales: number;
+  sellingPrice:   number;
+}
+
+export interface ProductionSummary {
+  period:       string;
+  totalLogs:    number;
+  bagsProduced: number;
+  bagsSold:     number;
+  damagedBags:  number;
+  totalSales:   number;
+  currentStock: number;
+  lastUpdated:  string | null;
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+export interface PaginationMeta {
+  page:       number;
+  limit:      number;
+  total:      number;
+  totalPages: number;
+  hasNext:    boolean;
+  hasPrev:    boolean;
 }
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
 export interface Expense {
-  id: string;
-  date: string;
+  id:          string;
+  date:        string;
   expenseType: ExpenseType;
-  amount: number;
+  amount:      number;
   description?: string;
-  userId: string;
-  createdAt: string;
-  user?: StaffUser;
+  userId:      string;
+  createdAt:   string;
+  user?: Pick<StaffUser, 'id' | 'fullName' | 'email'>;
 }
 
 export interface CreateExpenseDto {
-  date: string;
+  date:        string;
   expenseType: ExpenseType;
-  amount: number;
+  amount:      number;
   description?: string;
 }
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 
 export interface Product {
-  id: string;
-  name: string;
-  sizeKg: number;
-  price: number;
+  id:          string;
+  name:        string;
+  sizeKg:      number;
+  price:       number;
   isAvailable: boolean;
-  createdAt: string;
+  createdAt:   string;
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 export interface Customer {
-  id: string;
-  fullName: string;
-  email: string;
-  phone: string;
+  id:              string;
+  fullName:        string;
+  email:           string;
+  phone:           string;
   deliveryAddress?: string;
-  createdAt: string;
+  createdAt:       string;
 }
 
 export interface Order {
-  id: string;
-  customerId: string;
-  productId: string;
-  quantity: number;
-  totalAmount: number;
-  deliveryMethod: DeliveryMethod;
-  deliveryAddress?: string;
-  orderStatus: OrderStatus;
-  paymentStatus: PaymentStatus;
+  id:                  string;
+  customerId:          string;
+  productId:           string;
+  quantity:            number;
+  totalAmount:         number;
+  deliveryMethod:      DeliveryMethod;
+  deliveryAddress?:    string;
+  orderStatus:         OrderStatus;
+  paymentStatus:       PaymentStatus;
   specialInstructions?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt:           string;
+  updatedAt:           string;
   customer?: Customer;
-  product?: Product;
+  product?:  Product;
 }
 
-// ─── API Response ─────────────────────────────────────────────────────────────
+// ─── API Response wrapper ─────────────────────────────────────────────────────
 
 export interface ApiResponse<T = unknown> {
-  success: boolean;
+  success:  boolean;
   message?: string;
-  data?: T;
-  errors?: string[];
+  data?:    T;
+  errors?:  string[];
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export interface DashboardStats {
-  totalBagsProduced: number;
-  totalBagsSold: number;
-  totalRevenue: number;
-  totalExpenses: number;
-  netProfit: number;
-  pendingOrders: number;
+  production: ProductionSummary | null;
 }
