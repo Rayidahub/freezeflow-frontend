@@ -1,14 +1,22 @@
 // app/(staff)/dashboard/page.tsx
-// Dashboard with live data from the production summary API.
+// Dashboard — live production + expense data with net profit calculation.
 'use client';
 
-import { TrendingUp, TrendingDown, Package, ShoppingCart, DollarSign, Layers, AlertTriangle } from 'lucide-react';
+import {
+  TrendingUp, TrendingDown, Package, ShoppingCart,
+  DollarSign, Layers, AlertTriangle, ArrowRight,
+} from 'lucide-react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
+import { Badge }    from '@/components/ui/badge';
+import { Button }   from '@/components/ui/button';
 import { formatNaira } from '@/lib/utils';
 import { useProductionSummary, useProductionList } from '@/hooks/useProduction';
+import { useExpenseSummary } from '@/hooks/useExpenses';
 import { useAuth } from '@/context/AuthContext';
+
+// ─── Reusable stat card ───────────────────────────────────────────────────────
 
 function StatCard({
   label, value, icon: Icon, colorText, colorBg, subLabel,
@@ -44,12 +52,65 @@ function StatCardSkeleton() {
   );
 }
 
+// ─── Net profit card ──────────────────────────────────────────────────────────
+
+function NetProfitCard({
+  revenue, expenses, isLoading,
+}: {
+  revenue: number; expenses: number; isLoading: boolean;
+}) {
+  const profit    = revenue - expenses;
+  const isPositive = profit >= 0;
+
+  if (isLoading) {
+    return (
+      <Card className="lg:col-span-2">
+        <CardContent className="pt-6">
+          <Skeleton className="h-4 w-28 mb-3" />
+          <Skeleton className="h-10 w-40" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={`lg:col-span-2 border-2 ${isPositive ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50'}`}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Net Profit (Today)
+          </CardTitle>
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${isPositive ? 'bg-emerald-100' : 'bg-red-100'}`}>
+            {isPositive
+              ? <TrendingUp className="h-4 w-4 text-emerald-600" />
+              : <TrendingDown className="h-4 w-4 text-red-600" />
+            }
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className={`text-3xl font-black ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+          {isPositive ? '+' : ''}{formatNaira(profit)}
+        </p>
+        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+          <span>Revenue: <strong className="text-foreground">{formatNaira(revenue)}</strong></span>
+          <span>Expenses: <strong className="text-foreground">{formatNaira(expenses)}</strong></span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main dashboard ───────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  const { summary: todaySummary,  isLoading: todayLoading }  = useProductionSummary('today');
-  const { summary: monthSummary,  isLoading: monthLoading }  = useProductionSummary('month');
-  const { logs: recentLogs,       isLoading: logsLoading }   = useProductionList({ limit: 5 });
+  const { summary: todayProd,  isLoading: todayProdLoading }  = useProductionSummary('today');
+  const { summary: monthProd,  isLoading: monthProdLoading }  = useProductionSummary('month');
+  const { summary: todayExp,   isLoading: todayExpLoading }   = useExpenseSummary('today');
+  const { summary: monthExp,   isLoading: monthExpLoading }   = useExpenseSummary('month');
+  const { logs: recentLogs,    isLoading: logsLoading }       = useProductionList({ limit: 5 });
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -57,6 +118,9 @@ export default function DashboardPage() {
     if (h < 17) return 'Good afternoon';
     return 'Good evening';
   };
+
+  const todayLoading  = todayProdLoading || todayExpLoading;
+  const monthLoading  = monthProdLoading || monthExpLoading;
 
   return (
     <div className="space-y-6">
@@ -71,13 +135,17 @@ export default function DashboardPage() {
           </p>
         </div>
         <Badge variant="info" className="hidden sm:flex">
-          {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {new Date().toLocaleDateString('en-NG', {
+            weekday: 'long', day: 'numeric', month: 'long',
+          })}
         </Badge>
       </div>
 
-      {/* Today stats */}
+      {/* ── TODAY ── */}
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Today</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Today
+        </p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {todayLoading ? (
             [...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)
@@ -85,76 +153,115 @@ export default function DashboardPage() {
             <>
               <StatCard
                 label="Bags Produced"
-                value={(todaySummary?.bagsProduced ?? 0).toLocaleString()}
+                value={(todayProd?.bagsProduced ?? 0).toLocaleString()}
                 icon={Package}
                 colorText="text-blue-600" colorBg="bg-blue-50"
-                subLabel="units produced today"
+                subLabel="units produced"
               />
               <StatCard
                 label="Bags Sold"
-                value={(todaySummary?.bagsSold ?? 0).toLocaleString()}
+                value={(todayProd?.bagsSold ?? 0).toLocaleString()}
                 icon={ShoppingCart}
                 colorText="text-emerald-600" colorBg="bg-emerald-50"
-                subLabel="units sold today"
+                subLabel="units sold"
               />
               <StatCard
-                label="Today's Revenue"
-                value={formatNaira(todaySummary?.totalSales ?? 0)}
+                label="Revenue"
+                value={formatNaira(todayProd?.totalSales ?? 0)}
                 icon={DollarSign}
                 colorText="text-violet-600" colorBg="bg-violet-50"
-                subLabel="from production sales"
+                subLabel="from sales"
               />
               <StatCard
-                label="Current Stock"
-                value={(todaySummary?.currentStock ?? 0).toLocaleString()}
-                icon={Layers}
-                colorText="text-cyan-600" colorBg="bg-cyan-50"
-                subLabel="bags remaining"
+                label="Expenses"
+                value={formatNaira(todayExp?.totalExpenses ?? 0)}
+                icon={TrendingDown}
+                colorText="text-red-600" colorBg="bg-red-50"
+                subLabel={`${todayExp?.totalEntries ?? 0} entries`}
               />
             </>
           )}
         </div>
       </div>
 
-      {/* Monthly stats */}
+      {/* Net Profit (today) */}
+      <div className="grid gap-4 lg:grid-cols-4">
+        <NetProfitCard
+          revenue={todayProd?.totalSales ?? 0}
+          expenses={todayExp?.totalExpenses ?? 0}
+          isLoading={todayLoading}
+        />
+        <StatCard
+          label="Current Stock"
+          value={(todayProd?.currentStock ?? 0).toLocaleString()}
+          icon={Layers}
+          colorText="text-cyan-600" colorBg="bg-cyan-50"
+          subLabel="bags remaining"
+        />
+        <StatCard
+          label="Damaged Bags"
+          value={(todayProd?.damagedBags ?? 0).toLocaleString()}
+          icon={AlertTriangle}
+          colorText="text-amber-600" colorBg="bg-amber-50"
+          subLabel="today's losses"
+        />
+      </div>
+
+      {/* ── THIS MONTH ── */}
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">This Month</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          This Month
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {monthLoading ? (
-            [...Array(3)].map((_, i) => <StatCardSkeleton key={i} />)
+            [...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)
           ) : (
             <>
               <StatCard
                 label="Total Produced"
-                value={(monthSummary?.bagsProduced ?? 0).toLocaleString()}
+                value={(monthProd?.bagsProduced ?? 0).toLocaleString()}
                 icon={Package}
                 colorText="text-blue-600" colorBg="bg-blue-50"
-                subLabel={`across ${monthSummary?.totalLogs ?? 0} production days`}
+                subLabel={`across ${monthProd?.totalLogs ?? 0} days`}
               />
               <StatCard
                 label="Total Revenue"
-                value={formatNaira(monthSummary?.totalSales ?? 0)}
+                value={formatNaira(monthProd?.totalSales ?? 0)}
                 icon={DollarSign}
                 colorText="text-violet-600" colorBg="bg-violet-50"
-                subLabel="monthly production sales"
+                subLabel="monthly sales"
               />
               <StatCard
-                label="Damaged Bags"
-                value={(monthSummary?.damagedBags ?? 0).toLocaleString()}
-                icon={AlertTriangle}
-                colorText="text-amber-600" colorBg="bg-amber-50"
-                subLabel="total losses this month"
+                label="Total Expenses"
+                value={formatNaira(monthExp?.totalExpenses ?? 0)}
+                icon={TrendingDown}
+                colorText="text-red-600" colorBg="bg-red-50"
+                subLabel={`${monthExp?.totalEntries ?? 0} entries`}
+              />
+              <StatCard
+                label="Net Profit"
+                value={formatNaira((monthProd?.totalSales ?? 0) - (monthExp?.totalExpenses ?? 0))}
+                icon={TrendingUp}
+                colorText="text-emerald-600" colorBg="bg-emerald-50"
+                subLabel="this month"
               />
             </>
           )}
         </div>
       </div>
 
-      {/* Recent Production Logs */}
+      {/* ── RECENT PRODUCTION LOGS ── */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent Production Logs</CardTitle>
-          <CardDescription>Last 5 entries from your team</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Recent Production</CardTitle>
+            <CardDescription>Last 5 entries</CardDescription>
+          </div>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/production">
+              View all <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            </Link>
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           {logsLoading ? (
@@ -162,8 +269,11 @@ export default function DashboardPage() {
               {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
             </div>
           ) : recentLogs.length === 0 ? (
-            <div className="py-10 text-center text-muted-foreground text-sm">
-              No production logs yet. Head to the Production page to add the first one.
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No production logs yet.{' '}
+              <Link href="/production" className="text-primary hover:underline">
+                Add the first entry →
+              </Link>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -181,7 +291,9 @@ export default function DashboardPage() {
                   {recentLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-medium whitespace-nowrap">
-                        {new Date(log.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                        {new Date(log.date).toLocaleDateString('en-NG', {
+                          day: 'numeric', month: 'short',
+                        })}
                       </td>
                       <td className="px-4 py-3">{log.bagsProduced}</td>
                       <td className="px-4 py-3 text-emerald-600 font-medium">{log.bagsSold}</td>

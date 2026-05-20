@@ -135,3 +135,53 @@ export const healthApi = {
 };
 
 export default fetchApi;
+
+// ─── Expense API (Sprint 3) ───────────────────────────────────────────────────
+
+import type { Expense, ExpenseSummary, CreateExpenseDto } from '@/types';
+
+interface GetAllExpensesOptions {
+  page?:  number;
+  limit?: number;
+  from?:  string;
+  to?:    string;
+  type?:  string;
+}
+
+export const expenseApi = {
+  getAll: (token: string, opts: GetAllExpensesOptions = {}) => {
+    const params = new URLSearchParams();
+    if (opts.page)  params.set('page',  String(opts.page));
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.from)  params.set('from',  opts.from);
+    if (opts.to)    params.set('to',    opts.to);
+    if (opts.type)  params.set('type',  opts.type);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return fetchApi<{ expenses: Expense[]; pagination: PaginationMeta }>(
+      `/expenses${qs}`, { token }
+    );
+  },
+
+  getSummary: (token: string, period: 'today' | 'week' | 'month' | 'all' = 'today') =>
+    fetchApi<ExpenseSummary>(`/expenses/summary?period=${period}`, { token }),
+
+  getOne: (token: string, id: string) =>
+    fetchApi<Expense>(`/expenses/${id}`, { token }),
+
+  create: (token: string, data: CreateExpenseDto) =>
+    fetchApi<Expense>('/expenses', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  update: (token: string, id: string, data: Partial<CreateExpenseDto>) =>
+    fetchApi<Expense>(`/expenses/${id}`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify(data),
+    }),
+
+  delete: (token: string, id: string) =>
+    fetchApi<null>(`/expenses/${id}`, { method: 'DELETE', token }),
+};

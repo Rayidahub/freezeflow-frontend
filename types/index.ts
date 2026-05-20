@@ -154,3 +154,23 @@ export interface ApiResponse<T = unknown> {
 export interface DashboardStats {
   production: ProductionSummary | null;
 }
+
+// ─── Expenses (Sprint 3) ──────────────────────────────────────────────────────
+
+export interface ExpenseSummary {
+  period:        string;
+  totalExpenses: number;
+  totalEntries:  number;
+  breakdown: {
+    expenseType: ExpenseType;
+    total:       number;
+    count:       number;
+  }[];
+}
+
+export interface CreateExpenseDto {
+  date:         string;
+  expenseType:  ExpenseType;
+  amount:       number;
+  description?: string;
+}

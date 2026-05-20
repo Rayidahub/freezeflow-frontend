@@ -1,133 +1,263 @@
 // app/(staff)/expenses/page.tsx
-import type { Metadata } from 'next';
-import { Plus, Filter, Download, TrendingDown } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { formatNaira, formatDate, humanise } from '@/lib/utils';
+// Fully connected expense management page — no placeholder data.
+'use client';
 
-export const metadata: Metadata = { title: 'Expenses' };
+import { useState } from 'react';
+import { Plus, Download, Calendar } from 'lucide-react';
+import { Button }  from '@/components/ui/button';
+import { Input }   from '@/components/ui/input';
+import { Label }   from '@/components/ui/label';
+import { ExpenseSummaryCards }  from '@/components/expenses/ExpenseSummaryCards';
+import { ExpenseTable }         from '@/components/expenses/ExpenseTable';
+import { ExpenseFormModal }     from '@/components/expenses/ExpenseFormModal';
+import { DeleteConfirmDialog }  from '@/components/production/DeleteConfirmDialog';
+import { useToast }             from '@/components/ui/toast';
+import { useAuth }              from '@/context/AuthContext';
+import {
+  useExpenseList,
+  useExpenseSummary,
+  useExpenseMutations,
+} from '@/hooks/useExpenses';
+import { Expense, CreateExpenseDto, ExpenseType } from '@/types';
+import { EXPENSE_TYPE_LABELS } from '@/components/expenses/ExpenseFormModal';
 
-const expenseTypeColors: Record<string, string> = {
-  fuel: 'bg-orange-100 text-orange-800',
-  electricity: 'bg-yellow-100 text-yellow-800',
-  water: 'bg-blue-100 text-blue-800',
-  nylon: 'bg-green-100 text-green-800',
-  transportation: 'bg-purple-100 text-purple-800',
-  labor: 'bg-pink-100 text-pink-800',
-  maintenance: 'bg-red-100 text-red-800',
-  miscellaneous: 'bg-gray-100 text-gray-800',
-};
+type Period = 'today' | 'week' | 'month' | 'all';
 
-const expenses = [
-  { id: '1', date: '2024-12-15T10:00:00Z', expenseType: 'fuel', amount: 15000, description: 'Generator fuel', user: { fullName: 'Operations Staff' } },
-  { id: '2', date: '2024-12-15T14:00:00Z', expenseType: 'electricity', amount: 8500, description: 'EKEDC prepaid token', user: { fullName: 'Operations Staff' } },
-  { id: '3', date: '2024-12-14T09:00:00Z', expenseType: 'labor', amount: 10000, description: 'Daily wages', user: { fullName: 'Operations Staff' } },
+const EXPENSE_TYPES: ExpenseType[] = [
+  'fuel', 'electricity', 'water', 'nylon',
+  'transportation', 'labor', 'maintenance', 'miscellaneous',
 ];
 
-const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-
 export default function ExpensesPage() {
+  const { user }  = useAuth();
+  const { toast } = useToast();
+
+  // ─── Filter state ──────────────────────────────────────────────────────────
+  const [period,     setPeriod]     = useState<Period>('today');
+  const [page,       setPage]       = useState(1);
+  const [dateFrom,   setDateFrom]   = useState('');
+  const [dateTo,     setDateTo]     = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+
+  // ─── Modal state ───────────────────────────────────────────────────────────
+  const [formOpen,    setFormOpen]    = useState(false);
+  const [deleteOpen,  setDeleteOpen]  = useState(false);
+  const [editingExp,  setEditingExp]  = useState<Expense | null>(null);
+  const [deletingExp, setDeletingExp] = useState<Expense | null>(null);
+
+  // ─── Data hooks ────────────────────────────────────────────────────────────
+  const {
+    summary, isLoading: summaryLoading, refetch: refetchSummary,
+  } = useExpenseSummary(period);
+
+  const {
+    expenses, pagination, isLoading: expensesLoading, refetch: refetchExpenses,
+  } = useExpenseList({
+    page,
+    limit: 20,
+    from:  dateFrom  || undefined,
+    to:    dateTo    || undefined,
+    type:  typeFilter || undefined,
+  });
+
+  const {
+    createExpense, updateExpense, deleteExpense,
+    isSubmitting, error: mutationError, setError,
+  } = useExpenseMutations();
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
+
+  function openCreate() {
+    setEditingExp(null);
+    setError(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(expense: Expense) {
+    setEditingExp(expense);
+    setError(null);
+    setFormOpen(true);
+  }
+
+  function openDelete(expense: Expense) {
+    setDeletingExp(expense);
+    setDeleteOpen(true);
+  }
+
+  async function handleFormSubmit(data: CreateExpenseDto) {
+    if (editingExp) {
+      const updated = await updateExpense(editingExp.id, data);
+      if (updated) {
+        toast('Expense updated successfully', 'success');
+        setFormOpen(false);
+        refetchExpenses();
+        refetchSummary();
+      }
+    } else {
+      const created = await createExpense(data);
+      if (created) {
+        toast('Expense recorded successfully', 'success');
+        setFormOpen(false);
+        refetchExpenses();
+        refetchSummary();
+      }
+    }
+  }
+
+  async function handleDelete() {
+    if (!deletingExp) return;
+    const ok = await deleteExpense(deletingExp.id);
+    if (ok) {
+      toast('Expense deleted', 'success');
+      setDeleteOpen(false);
+      setDeletingExp(null);
+      refetchExpenses();
+      refetchSummary();
+    } else {
+      toast(mutationError ?? 'Failed to delete expense', 'error');
+    }
+  }
+
+  function handleApplyFilter() {
+    setPage(1);
+    refetchExpenses();
+  }
+
+  function handleClearFilter() {
+    setDateFrom('');
+    setDateTo('');
+    setTypeFilter('');
+    setPage(1);
+  }
+
+  const hasActiveFilter = dateFrom || dateTo || typeFilter;
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Expenses</h2>
-          <p className="text-muted-foreground mt-1">Record and monitor all operational costs.</p>
+          <p className="text-muted-foreground mt-1">
+            Record and monitor all operational costs.
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Expense
-          </Button>
+          {(user?.role === 'super_admin' || user?.role === 'operations') && (
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Expense
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Summary card */}
-      <Card className="border-destructive/30 bg-destructive/5">
-        <CardContent className="flex items-center gap-4 pt-6">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10">
-            <TrendingDown className="h-6 w-6 text-destructive" />
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Total expenses this period</p>
-            <p className="text-3xl font-bold text-destructive">{formatNaira(totalExpenses)}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Period selector */}
+      <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 w-fit">
+        {(['today', 'week', 'month', 'all'] as Period[]).map((p) => (
+          <button
+            key={p}
+            onClick={() => { setPeriod(p); setPage(1); }}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${
+              period === p
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {p === 'all' ? 'All Time' : p === 'today' ? 'Today' : `This ${p.charAt(0).toUpperCase() + p.slice(1)}`}
+          </button>
+        ))}
+      </div>
 
-      {/* Expense breakdown by type */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Expense Breakdown</CardTitle>
-          <CardDescription>Costs grouped by category</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {Object.entries(
-            expenses.reduce<Record<string, number>>((acc, e) => {
-              acc[e.expenseType] = (acc[e.expenseType] || 0) + e.amount;
-              return acc;
-            }, {})
-          ).map(([type, total]) => (
-            <div key={type} className="flex items-center justify-between">
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${expenseTypeColors[type] || 'bg-gray-100 text-gray-800'}`}
-              >
-                {humanise(type)}
-              </span>
-              <span className="font-semibold text-sm">{formatNaira(total)}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      {/* Summary cards + breakdown */}
+      <ExpenseSummaryCards summary={summary} isLoading={summaryLoading} />
 
-      {/* Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">All Expenses</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  {['Date', 'Type', 'Amount', 'Description', 'Logged by'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {expenses.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap font-medium">{formatDate(expense.date)}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${expenseTypeColors[expense.expenseType] || 'bg-gray-100 text-gray-800'}`}
-                      >
-                        {humanise(expense.expenseType)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-destructive">{formatNaira(expense.amount)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{expense.description || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{expense.user.fullName}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
+        <Calendar className="h-4 w-4 text-muted-foreground self-center mt-5" />
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">From</Label>
+          <Input
+            type="date" value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-9 w-40 text-sm"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">To</Label>
+          <Input
+            type="date" value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-9 w-40 text-sm"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Category</Label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="flex h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="">All categories</option>
+            {EXPENSE_TYPES.map((t) => (
+              <option key={t} value={t}>{EXPENSE_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
+
+        <Button size="sm" onClick={handleApplyFilter} className="h-9">
+          Apply
+        </Button>
+        {hasActiveFilter && (
+          <Button size="sm" variant="ghost" onClick={handleClearFilter} className="h-9">
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {/* Expense table */}
+      <ExpenseTable
+        expenses={expenses}
+        pagination={pagination}
+        isLoading={expensesLoading}
+        userRole={user?.role ?? 'delivery'}
+        onEdit={openEdit}
+        onDelete={openDelete}
+        onPageChange={setPage}
+        onAddNew={openCreate}
+      />
+
+      {/* Create / Edit modal */}
+      <ExpenseFormModal
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSubmit={handleFormSubmit}
+        isSubmitting={isSubmitting}
+        editData={editingExp}
+        serverError={mutationError}
+      />
+
+      {/* Delete confirmation */}
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onClose={() => { setDeleteOpen(false); setDeletingExp(null); }}
+        onConfirm={handleDelete}
+        isDeleting={isSubmitting}
+        title="Delete this expense?"
+        description={
+          deletingExp
+            ? `This will permanently delete the ₦${deletingExp.amount.toLocaleString()} ${deletingExp.expenseType} expense from ${new Date(deletingExp.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}.`
+            : 'This action cannot be undone.'
+        }
+      />
     </div>
   );
 }
