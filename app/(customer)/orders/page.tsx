@@ -1,48 +1,55 @@
 // app/(customer)/orders/page.tsx
-import type { Metadata } from 'next';
-import { Package, ChevronRight, Clock, CheckCircle, Truck, XCircle } from 'lucide-react';
+// Customer order history — live from API, with cancel action.
+'use client';
+
+import { useState } from 'react';
+import { Package, XCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { useToast } from '@/components/ui/toast';
+import { useCustomerAuth } from '@/context/CustomerAuthContext';
+import { useMyOrders, useOrderMutations } from '@/hooks/useOrders';
 import { formatNaira, formatDate } from '@/lib/utils';
+import { Order } from '@/types';
 
-export const metadata: Metadata = { title: 'My Orders | FreezeFlow' };
+export default function CustomerOrdersPage() {
+  const { isAuthenticated } = useCustomerAuth();
+  const { toast } = useToast();
+  const [page, setPage] = useState(1);
+  const { orders, pagination, isLoading, refetch } = useMyOrders(page);
+  const { cancelOrder, isSubmitting } = useOrderMutations();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-// Placeholder — will be replaced by authenticated API calls in Sprint 2+
-const mockOrders = [
-  {
-    id: 'ord-001',
-    product: { name: 'Large Ice Block', sizeKg: 10 },
-    quantity: 3,
-    totalAmount: 3000,
-    orderStatus: 'out_for_delivery' as const,
-    paymentStatus: 'paid' as const,
-    deliveryMethod: 'delivery' as const,
-    createdAt: '2024-12-15T09:00:00Z',
-  },
-  {
-    id: 'ord-002',
-    product: { name: 'Small Ice Block', sizeKg: 5 },
-    quantity: 5,
-    totalAmount: 2500,
-    orderStatus: 'delivered' as const,
-    paymentStatus: 'paid' as const,
-    deliveryMethod: 'pickup' as const,
-    createdAt: '2024-12-13T14:00:00Z',
-  },
-];
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <Package className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+        <h2 className="text-xl font-bold">Sign in to view your orders</h2>
+        <p className="text-muted-foreground mt-2 text-sm">
+          You need to be signed in to view your order history.
+        </p>
+        <div className="flex justify-center gap-3 mt-6">
+          <Button asChild><Link href="/customer-login">Sign In</Link></Button>
+          <Button asChild variant="outline"><Link href="/customer-register">Create Account</Link></Button>
+        </div>
+      </div>
+    );
+  }
 
-const statusConfig = {
-  pending: { label: 'Pending', icon: Clock, color: 'warning' as const },
-  confirmed: { label: 'Confirmed', icon: CheckCircle, color: 'info' as const },
-  processing: { label: 'Processing', icon: Package, color: 'info' as const },
-  out_for_delivery: { label: 'Out for Delivery', icon: Truck, color: 'info' as const },
-  delivered: { label: 'Delivered', icon: CheckCircle, color: 'success' as const },
-  cancelled: { label: 'Cancelled', icon: XCircle, color: 'destructive' as const },
-};
+  async function handleCancel(order: Order) {
+    setCancellingId(order.id);
+    const ok = await cancelOrder(order.id);
+    if (ok) {
+      toast('Order cancelled successfully', 'success');
+      refetch();
+    } else {
+      toast('Failed to cancel order', 'error');
+    }
+    setCancellingId(null);
+  }
 
-export default function OrdersPage() {
   return (
     <div className="container mx-auto px-4 py-10">
       <div className="mb-8 flex items-center justify-between">
@@ -50,12 +57,14 @@ export default function OrdersPage() {
           <h1 className="text-3xl font-bold">My Orders</h1>
           <p className="text-muted-foreground mt-1">Track and manage your ice block orders.</p>
         </div>
-        <Button asChild>
-          <Link href="/products">Place New Order</Link>
-        </Button>
+        <Button asChild><Link href="/products">Place New Order</Link></Button>
       </div>
 
-      {mockOrders.length === 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : orders.length === 0 ? (
         <Card className="py-16 text-center">
           <CardContent>
             <Package className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
@@ -63,67 +72,78 @@ export default function OrdersPage() {
             <p className="text-muted-foreground text-sm mt-1">
               Place your first order to get fresh ice delivered.
             </p>
-            <Button asChild className="mt-6">
-              <Link href="/products">Browse Products</Link>
-            </Button>
+            <Button asChild className="mt-6"><Link href="/products">Browse Products</Link></Button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {mockOrders.map((order) => {
-            const status = statusConfig[order.orderStatus];
-            const StatusIcon = status.icon;
-
-            return (
-              <Card key={order.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                        <Package className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-bold">{order.product.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {order.quantity} × {order.product.sizeKg}kg block
-                          {order.quantity > 1 ? 's' : ''} ·{' '}
-                          {order.deliveryMethod === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Ordered {formatDate(order.createdAt)}
-                        </p>
-                      </div>
+          {orders.map((order) => (
+            <Card key={order.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <Package className="h-6 w-6 text-primary" />
                     </div>
-
-                    <div className="flex flex-col sm:items-end gap-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={status.color}>
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {status.label}
-                        </Badge>
-                        <Badge variant={order.paymentStatus === 'paid' ? 'success' : 'warning'}>
-                          {order.paymentStatus === 'paid' ? '✓ Paid' : 'Unpaid'}
-                        </Badge>
-                      </div>
-                      <p className="font-bold text-lg">{formatNaira(order.totalAmount)}</p>
+                    <div>
+                      <p className="font-bold">{order.product?.name ?? 'Product'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {order.quantity} × {order.product?.sizeKg}kg ·{' '}
+                        {order.deliveryMethod === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}
+                      </p>
+                      {order.deliveryAddress && (
+                        <p className="text-xs text-muted-foreground mt-0.5 max-w-xs truncate">
+                          📍 {order.deliveryAddress}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Ordered {formatDate(order.createdAt)}
+                      </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+
+                  <div className="flex flex-col sm:items-end gap-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      <OrderStatusBadge status={order.orderStatus} />
+                      <PaymentStatusBadge status={order.paymentStatus} />
+                    </div>
+                    <p className="font-bold text-lg">{formatNaira(order.totalAmount)}</p>
+                    {['pending', 'confirmed'].includes(order.orderStatus) && (
+                      <Button
+                        variant="ghost" size="sm"
+                        className="text-destructive hover:text-destructive h-7 text-xs"
+                        onClick={() => handleCancel(order)}
+                        disabled={isSubmitting && cancellingId === order.id}
+                      >
+                        {isSubmitting && cancellingId === order.id
+                          ? <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          : <XCircle className="h-3 w-3 mr-1" />
+                        }
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Pagination */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex justify-center gap-2 pt-4">
+              <Button variant="outline" size="sm" disabled={!pagination.hasPrev} onClick={() => setPage(p => p - 1)}>
+                Previous
+              </Button>
+              <span className="flex items-center text-sm text-muted-foreground px-2">
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
+              <Button variant="outline" size="sm" disabled={!pagination.hasNext} onClick={() => setPage(p => p + 1)}>
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       )}
-
-      {/* Auth prompt for guests */}
-      <div className="mt-10 rounded-xl border border-border bg-muted/40 p-6 text-center">
-        <p className="text-sm text-muted-foreground">
-          Sign in to see your real orders and track deliveries in real time.
-        </p>
-        <Button asChild variant="outline" size="sm" className="mt-3">
-          <Link href="/login">Sign In</Link>
-        </Button>
-      </div>
     </div>
   );
 }

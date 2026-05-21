@@ -174,3 +174,43 @@ export interface CreateExpenseDto {
   amount:       number;
   description?: string;
 }
+
+// ─── Customer Auth (Sprint 4) ─────────────────────────────────────────────────
+
+export interface CustomerUser {
+  id:               string;
+  fullName:         string;
+  email:            string;
+  phone:            string;
+  deliveryAddress?: string | null;
+}
+
+export interface CustomerAuthResponse {
+  token:    string;
+  customer: CustomerUser;
+}
+
+export interface CustomerRegisterDto {
+  fullName:         string;
+  email:            string;
+  phone:            string;
+  password:         string;
+  deliveryAddress?: string;
+}
+
+// ─── Orders (Sprint 4) ───────────────────────────────────────────────────────
+
+export interface PlaceOrderDto {
+  productId:           string;
+  quantity:            number;
+  deliveryMethod:      DeliveryMethod;
+  deliveryAddress?:    string;
+  specialInstructions?: string;
+}
+
+export interface OrderSummary {
+  byStatus:     Record<string, number>;
+  totalPending: number;
+  totalActive:  number;
+  totalRevenue: number;
+}
