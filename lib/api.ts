@@ -19,6 +19,9 @@ import type {
   CustomerUser,
   PlaceOrderDto,
   OrderSummary,
+  Payment,
+  InitializePaymentResponse,
+  VerifyPaymentResponse,
 } from '@/types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -277,6 +280,32 @@ export const ordersApi = {
 
 export const healthApi = {
   check: () => fetchApi<{ status: string; timestamp: string }>('/health'),
+};
+
+// ─── Payment API (Sprint 5) ───────────────────────────────────────────────────
+
+export const paymentApi = {
+  initialize: (token: string, orderId: string) =>
+    fetchApi<InitializePaymentResponse>('/payments/initialize', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ orderId }),
+    }),
+
+  verify: (token: string, reference: string) =>
+    fetchApi<VerifyPaymentResponse>(
+      `/payments/verify?reference=${encodeURIComponent(reference)}`,
+      { token }
+    ),
+
+  getByOrder: (token: string, orderId: string) =>
+    fetchApi<Payment | null>(`/payments/order/${orderId}`, { token }),
+
+  markCash: (token: string, orderId: string) =>
+    fetchApi<{ orderId: string; reference: string }>(
+      `/payments/cash/${orderId}`,
+      { method: 'POST', token }
+    ),
 };
 
 export default fetchApi;

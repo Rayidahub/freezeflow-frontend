@@ -1,57 +1,58 @@
-'use client';
 // app/(staff)/admin/orders/page.tsx
-// Staff view of all customer orders with status update actions.
+// Staff orders management - status updates + mark cash payments.
+'use client';
 
 import { useState } from 'react';
-import { ShoppingCart, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ShoppingCart, ChevronLeft, ChevronRight, Loader2, Banknote } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button }   from '@/components/ui/button';
-import { Badge }    from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/orders/OrderStatusBadge';
-import { useToast }           from '@/components/ui/toast';
+import { useToast }              from '@/components/ui/toast';
 import { useStaffOrders, useOrderSummary, useStaffOrderMutations } from '@/hooks/useStaffOrders';
+import { useStaffPayment }       from '@/hooks/usePayment';
 import { formatNaira, formatDate } from '@/lib/utils';
 import { Order, OrderStatus } from '@/types';
 
-const ORDER_STATUSES: { value: string; label: string }[] = [
-  { value: '',                label: 'All Orders' },
-  { value: 'pending',         label: 'Pending' },
-  { value: 'confirmed',       label: 'Confirmed' },
-  { value: 'processing',      label: 'Processing' },
-  { value: 'out_for_delivery',label: 'Out for Delivery' },
-  { value: 'delivered',       label: 'Delivered' },
-  { value: 'cancelled',       label: 'Cancelled' },
+const ORDER_STATUSES = [
+  { value: '',                 label: 'All Orders' },
+  { value: 'pending',          label: 'Pending' },
+  { value: 'confirmed',        label: 'Confirmed' },
+  { value: 'processing',       label: 'Processing' },
+  { value: 'out_for_delivery', label: 'Out for Delivery' },
+  { value: 'delivered',        label: 'Delivered' },
+  { value: 'cancelled',        label: 'Cancelled' },
 ];
 
-// Next allowed status transitions per current status
 const NEXT_ACTIONS: Record<OrderStatus, { status: OrderStatus; label: string; variant: 'default' | 'outline' | 'destructive' }[]> = {
-  pending:          [{ status: 'confirmed',        label: 'Confirm',        variant: 'default' },
-                     { status: 'cancelled',         label: 'Cancel',         variant: 'destructive' }],
+  pending:          [{ status: 'confirmed',        label: 'Confirm',          variant: 'default' },
+                     { status: 'cancelled',         label: 'Cancel',           variant: 'destructive' }],
   confirmed:        [{ status: 'processing',        label: 'Start Processing', variant: 'default' },
-                     { status: 'cancelled',          label: 'Cancel',         variant: 'destructive' }],
-  processing:       [{ status: 'out_for_delivery',  label: 'Send Out',       variant: 'default' },
-                     { status: 'cancelled',          label: 'Cancel',         variant: 'destructive' }],
-  out_for_delivery: [{ status: 'delivered',         label: 'Mark Delivered', variant: 'default' }],
+                     { status: 'cancelled',          label: 'Cancel',           variant: 'destructive' }],
+  processing:       [{ status: 'out_for_delivery',  label: 'Send Out',         variant: 'default' },
+                     { status: 'cancelled',          label: 'Cancel',           variant: 'destructive' }],
+  out_for_delivery: [{ status: 'delivered',         label: 'Mark Delivered',   variant: 'default' }],
   delivered:        [],
   cancelled:        [],
 };
 
 export default function StaffOrdersPage() {
-  const { toast }   = useToast();
-  const [page,      setPage]      = useState(1);
-  const [status,    setStatus]    = useState('');
+  const { toast }           = useToast();
+  const [page, setPage]     = useState(1);
+  const [status, setStatus] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [cashingId,  setCashingId]  = useState<string | null>(null);
 
   const { orders, pagination, isLoading, refetch } = useStaffOrders(page, status || undefined);
   const { summary, isLoading: summaryLoading }      = useOrderSummary();
   const { updateStatus, isSubmitting }              = useStaffOrderMutations();
+  const { markCashPaid, isMarking }                 = useStaffPayment();
 
   async function handleStatusUpdate(order: Order, newStatus: OrderStatus) {
     setUpdatingId(order.id);
     const updated = await updateStatus(order.id, newStatus);
     if (updated) {
-      toast(`Order updated to: ${newStatus.replace('_', ' ')}`, 'success');
+      toast(`Order updated to: ${newStatus.replace(/_/g, ' ')}`, 'success');
       refetch();
     } else {
       toast('Failed to update order status', 'error');
@@ -59,9 +60,20 @@ export default function StaffOrdersPage() {
     setUpdatingId(null);
   }
 
+  async function handleMarkCash(order: Order) {
+    setCashingId(order.id);
+    const ok = await markCashPaid(order.id);
+    if (ok) {
+      toast('Order marked as paid (cash)', 'success');
+      refetch();
+    } else {
+      toast('Failed to mark as paid', 'error');
+    }
+    setCashingId(null);
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Customer Orders</h2>
         <p className="text-muted-foreground mt-1">Manage and fulfil all customer orders.</p>
@@ -74,23 +86,21 @@ export default function StaffOrdersPage() {
             <Card key={i}><CardContent className="pt-6"><Skeleton className="h-8 w-full" /></CardContent></Card>
           ))
         ) : (
-          <>
-            {[
-              { label: 'Pending',    value: summary?.totalPending ?? 0, color: 'text-amber-600' },
-              { label: 'Active',     value: summary?.totalActive  ?? 0, color: 'text-blue-600'  },
-              { label: 'Delivered',  value: summary?.byStatus?.delivered ?? 0, color: 'text-emerald-600' },
-              { label: 'Cancelled',  value: summary?.byStatus?.cancelled ?? 0, color: 'text-red-600' },
-            ].map((s) => (
-              <Card key={s.label}>
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-xs font-medium text-muted-foreground">{s.label}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className={`text-3xl font-black ${s.color}`}>{s.value}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </>
+          [
+            { label: 'Pending',   value: summary?.totalPending ?? 0,              color: 'text-amber-600'   },
+            { label: 'Active',    value: summary?.totalActive  ?? 0,              color: 'text-blue-600'    },
+            { label: 'Delivered', value: summary?.byStatus?.delivered ?? 0,       color: 'text-emerald-600' },
+            { label: 'Revenue',   value: formatNaira(summary?.totalRevenue ?? 0), color: 'text-violet-600', isString: true },
+          ].map((s) => (
+            <Card key={s.label}>
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs font-medium text-muted-foreground">{s.label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+              </CardContent>
+            </Card>
+          ))
         )}
       </div>
 
@@ -140,7 +150,7 @@ export default function StaffOrdersPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-border bg-muted/50">
                   <tr>
-                    {['Date', 'Customer', 'Product', 'Qty', 'Total', 'Method', 'Status', 'Payment', 'Actions'].map((h) => (
+                    {['Date','Customer','Product','Qty','Total','Method','Status','Payment','Actions'].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
                         {h}
                       </th>
@@ -149,8 +159,10 @@ export default function StaffOrdersPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {orders.map((order) => {
-                    const actions = NEXT_ACTIONS[order.orderStatus as OrderStatus] ?? [];
+                    const actions   = NEXT_ACTIONS[order.orderStatus as OrderStatus] ?? [];
                     const isUpdating = isSubmitting && updatingId === order.id;
+                    const isCashing  = isMarking    && cashingId  === order.id;
+
                     return (
                       <tr key={order.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
@@ -160,14 +172,12 @@ export default function StaffOrdersPage() {
                           <p className="font-medium">{order.customer?.fullName ?? '—'}</p>
                           <p className="text-xs text-muted-foreground">{order.customer?.phone ?? ''}</p>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {order.product?.name ?? '—'}
-                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">{order.product?.name ?? '—'}</td>
                         <td className="px-4 py-3">{order.quantity}</td>
                         <td className="px-4 py-3 font-semibold text-primary whitespace-nowrap">
                           {formatNaira(order.totalAmount)}
                         </td>
-                        <td className="px-4 py-3 capitalize whitespace-nowrap">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {order.deliveryMethod === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}
                         </td>
                         <td className="px-4 py-3">
@@ -177,22 +187,35 @@ export default function StaffOrdersPage() {
                           <PaymentStatusBadge status={order.paymentStatus} />
                         </td>
                         <td className="px-4 py-3">
-                          {actions.length > 0 && (
-                            <div className="flex gap-1 flex-wrap">
-                              {actions.map((action) => (
-                                <Button
-                                  key={action.status}
-                                  variant={action.variant}
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                  disabled={isUpdating}
-                                  onClick={() => handleStatusUpdate(order, action.status)}
-                                >
-                                  {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : action.label}
-                                </Button>
-                              ))}
-                            </div>
-                          )}
+                          <div className="flex gap-1 flex-wrap min-w-[160px]">
+                            {/* Order status actions */}
+                            {actions.map((action) => (
+                              <Button
+                                key={action.status}
+                                variant={action.variant}
+                                size="sm" className="h-7 text-xs"
+                                disabled={isUpdating}
+                                onClick={() => handleStatusUpdate(order, action.status)}
+                              >
+                                {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : action.label}
+                              </Button>
+                            ))}
+                            {/* Mark cash paid — for unpaid, non-cancelled orders */}
+                            {order.paymentStatus === 'unpaid' && order.orderStatus !== 'cancelled' && (
+                              <Button
+                                variant="outline" size="sm"
+                                className="h-7 text-xs gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                disabled={isCashing}
+                                onClick={() => handleMarkCash(order)}
+                              >
+                                {isCashing
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <Banknote className="h-3 w-3" />
+                                }
+                                Cash Paid
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -202,17 +225,18 @@ export default function StaffOrdersPage() {
             </div>
           )}
 
-          {/* Pagination */}
           {pagination && pagination.totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-border px-4 py-3">
               <p className="text-sm text-muted-foreground">
                 Page {pagination.page} of {pagination.totalPages}
               </p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={!pagination.hasPrev} onClick={() => setPage(p => p - 1)}>
+                <Button variant="outline" size="sm"
+                  disabled={!pagination.hasPrev} onClick={() => setPage(p => p - 1)}>
                   <ChevronLeft className="h-4 w-4 mr-1" />Previous
                 </Button>
-                <Button variant="outline" size="sm" disabled={!pagination.hasNext} onClick={() => setPage(p => p + 1)}>
+                <Button variant="outline" size="sm"
+                  disabled={!pagination.hasNext} onClick={() => setPage(p => p + 1)}>
                   Next<ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>

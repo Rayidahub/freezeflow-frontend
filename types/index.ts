@@ -214,3 +214,29 @@ export interface OrderSummary {
   totalActive:  number;
   totalRevenue: number;
 }
+
+// ─── Payments (Sprint 5) ──────────────────────────────────────────────────────
+
+export interface Payment {
+  id:                   string;
+  orderId:              string;
+  customerId:           string;
+  amount:               number;
+  paymentMethod:        PaymentMethod;
+  transactionReference?: string;
+  paymentStatus:        PaymentStatus;
+  paidAt?:              string | null;
+  createdAt:            string;
+}
+
+export interface InitializePaymentResponse {
+  authorizationUrl: string;
+  accessCode:       string;
+  reference:        string;
+  amount:           number;
+}
+
+export interface VerifyPaymentResponse {
+  status:   'success' | 'failed' | 'abandoned' | 'pending';
+  orderId:  string;
+}

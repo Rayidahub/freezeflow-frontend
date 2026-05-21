@@ -1,26 +1,31 @@
 // app/(customer)/orders/page.tsx
-// Customer order history — live from API, with cancel action.
+// Customer order history with Pay Now + Cancel actions.
 'use client';
 
 import { useState } from 'react';
-import { Package, XCircle, Loader2 } from 'lucide-react';
+import { Package, XCircle, Loader2, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/orders/OrderStatusBadge';
-import { useToast } from '@/components/ui/toast';
-import { useCustomerAuth } from '@/context/CustomerAuthContext';
+import { useToast }          from '@/components/ui/toast';
+import { useCustomerAuth }   from '@/context/CustomerAuthContext';
 import { useMyOrders, useOrderMutations } from '@/hooks/useOrders';
+import { useCustomerPayment } from '@/hooks/usePayment';
 import { formatNaira, formatDate } from '@/lib/utils';
 import { Order } from '@/types';
 
 export default function CustomerOrdersPage() {
   const { isAuthenticated } = useCustomerAuth();
-  const { toast } = useToast();
-  const [page, setPage] = useState(1);
+  const { toast }           = useToast();
+  const [page, setPage]     = useState(1);
+
   const { orders, pagination, isLoading, refetch } = useMyOrders(page);
-  const { cancelOrder, isSubmitting } = useOrderMutations();
+  const { cancelOrder, isSubmitting: isCancelling } = useOrderMutations();
+  const { payForOrder, isLoading: isPaying }        = useCustomerPayment();
+
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [payingId,     setPayingId]     = useState<string | null>(null);
 
   if (!isAuthenticated) {
     return (
@@ -41,13 +46,16 @@ export default function CustomerOrdersPage() {
   async function handleCancel(order: Order) {
     setCancellingId(order.id);
     const ok = await cancelOrder(order.id);
-    if (ok) {
-      toast('Order cancelled successfully', 'success');
-      refetch();
-    } else {
-      toast('Failed to cancel order', 'error');
-    }
+    if (ok) { toast('Order cancelled successfully', 'success'); refetch(); }
+    else     { toast('Failed to cancel order', 'error'); }
     setCancellingId(null);
+  }
+
+  async function handlePay(order: Order) {
+    setPayingId(order.id);
+    await payForOrder(order.id);
+    // If we reach here, payment redirect failed
+    setPayingId(null);
   }
 
   return (
@@ -69,9 +77,7 @@ export default function CustomerOrdersPage() {
           <CardContent>
             <Package className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
             <h3 className="font-semibold text-lg">No orders yet</h3>
-            <p className="text-muted-foreground text-sm mt-1">
-              Place your first order to get fresh ice delivered.
-            </p>
+            <p className="text-muted-foreground text-sm mt-1">Place your first order to get fresh ice delivered.</p>
             <Button asChild className="mt-6"><Link href="/products">Browse Products</Link></Button>
           </CardContent>
         </Card>
@@ -80,7 +86,7 @@ export default function CustomerOrdersPage() {
           {orders.map((order) => (
             <Card key={order.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                       <Package className="h-6 w-6 text-primary" />
@@ -108,20 +114,41 @@ export default function CustomerOrdersPage() {
                       <PaymentStatusBadge status={order.paymentStatus} />
                     </div>
                     <p className="font-bold text-lg">{formatNaira(order.totalAmount)}</p>
-                    {['pending', 'confirmed'].includes(order.orderStatus) && (
-                      <Button
-                        variant="ghost" size="sm"
-                        className="text-destructive hover:text-destructive h-7 text-xs"
-                        onClick={() => handleCancel(order)}
-                        disabled={isSubmitting && cancellingId === order.id}
-                      >
-                        {isSubmitting && cancellingId === order.id
-                          ? <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          : <XCircle className="h-3 w-3 mr-1" />
-                        }
-                        Cancel
-                      </Button>
-                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      {/* Pay Now — shown for unpaid, non-cancelled orders */}
+                      {order.paymentStatus === 'unpaid' && order.orderStatus !== 'cancelled' && (
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => handlePay(order)}
+                          disabled={isPaying && payingId === order.id}
+                        >
+                          {isPaying && payingId === order.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <CreditCard className="h-3 w-3" />
+                          }
+                          Pay Now
+                        </Button>
+                      )}
+
+                      {/* Cancel — only for pending or confirmed */}
+                      {['pending', 'confirmed'].includes(order.orderStatus) && (
+                        <Button
+                          variant="ghost" size="sm"
+                          className="text-destructive hover:text-destructive h-8 text-xs"
+                          onClick={() => handleCancel(order)}
+                          disabled={isCancelling && cancellingId === order.id}
+                        >
+                          {isCancelling && cancellingId === order.id
+                            ? <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            : <XCircle className="h-3 w-3 mr-1" />
+                          }
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -131,13 +158,15 @@ export default function CustomerOrdersPage() {
           {/* Pagination */}
           {pagination && pagination.totalPages > 1 && (
             <div className="flex justify-center gap-2 pt-4">
-              <Button variant="outline" size="sm" disabled={!pagination.hasPrev} onClick={() => setPage(p => p - 1)}>
+              <Button variant="outline" size="sm"
+                disabled={!pagination.hasPrev} onClick={() => setPage(p => p - 1)}>
                 Previous
               </Button>
               <span className="flex items-center text-sm text-muted-foreground px-2">
                 Page {pagination.page} of {pagination.totalPages}
               </span>
-              <Button variant="outline" size="sm" disabled={!pagination.hasNext} onClick={() => setPage(p => p + 1)}>
+              <Button variant="outline" size="sm"
+                disabled={!pagination.hasNext} onClick={() => setPage(p => p + 1)}>
                 Next
               </Button>
             </div>
