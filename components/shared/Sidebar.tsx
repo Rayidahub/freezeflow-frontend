@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Factory, Receipt, Package,
-  ShoppingCart, Users, Settings, LogOut, Snowflake, ChevronRight,
+  ShoppingCart, Users, Settings, LogOut, Snowflake, ChevronRight, Truck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,8 @@ const navItems = [
 
 const adminNavItems = [
   { label: 'Products',  href: '/admin/products',  icon: Package,      roles: ['super_admin'] },
-  { label: 'Orders',    href: '/admin/orders',    icon: ShoppingCart, roles: ['super_admin', 'operations'] },
+  { label: 'Orders',      href: '/admin/orders',     icon: ShoppingCart, roles: ['super_admin', 'operations'] },
+  { label: 'Deliveries',  href: '/admin/deliveries', icon: Truck,        roles: ['super_admin', 'operations', 'delivery'] },
   { label: 'Customers', href: '/admin/customers', icon: Users,        roles: ['super_admin'] },
   { label: 'Settings',  href: '/admin/settings',  icon: Settings,     roles: ['super_admin'] },
 ];

@@ -240,3 +240,31 @@ export interface VerifyPaymentResponse {
   status:   'success' | 'failed' | 'abandoned' | 'pending';
   orderId:  string;
 }
+
+// ─── Delivery & Status History (Sprint 6) ────────────────────────────────────
+
+export interface DeliveryStaffMember {
+  id:       string;
+  fullName: string;
+  email:    string;
+  role:     UserRole;
+}
+
+export interface DeliveryAssignment {
+  id:              string;
+  orderId:         string;
+  deliveryStaffId: string;
+  assignedAt:      string;
+  completedAt?:    string | null;
+  notes?:          string | null;
+  deliveryStaff:   DeliveryStaffMember;
+}
+
+export interface OrderStatusHistoryEntry {
+  id:          string;
+  orderId:     string;
+  status:      OrderStatus;
+  changedById?: string | null;
+  note?:       string | null;
+  createdAt:   string;
+}

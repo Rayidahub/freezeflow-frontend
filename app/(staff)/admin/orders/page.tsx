@@ -11,6 +11,8 @@ import { OrderStatusBadge, PaymentStatusBadge } from '@/components/orders/OrderS
 import { useToast }              from '@/components/ui/toast';
 import { useStaffOrders, useOrderSummary, useStaffOrderMutations } from '@/hooks/useStaffOrders';
 import { useStaffPayment }       from '@/hooks/usePayment';
+import { AssignDeliveryModal }   from '@/components/orders/AssignDeliveryModal';
+import { useDeliveryMutations }  from '@/hooks/useDelivery';
 import { formatNaira, formatDate } from '@/lib/utils';
 import { Order, OrderStatus } from '@/types';
 
@@ -41,12 +43,16 @@ export default function StaffOrdersPage() {
   const [page, setPage]     = useState(1);
   const [status, setStatus] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [cashingId,  setCashingId]  = useState<string | null>(null);
+  const [cashingId,   setCashingId]   = useState<string | null>(null);
+  const [assignOpen,  setAssignOpen]  = useState(false);
+  const [assignOrder, setAssignOrder] = useState<Order | null>(null);
 
   const { orders, pagination, isLoading, refetch } = useStaffOrders(page, status || undefined);
   const { summary, isLoading: summaryLoading }      = useOrderSummary();
   const { updateStatus, isSubmitting }              = useStaffOrderMutations();
   const { markCashPaid, isMarking }                 = useStaffPayment();
+  const { assignDelivery, isSubmitting: isAssigning,
+          error: assignError, setError: setAssignError } = useDeliveryMutations();
 
   async function handleStatusUpdate(order: Order, newStatus: OrderStatus) {
     setUpdatingId(order.id);
@@ -70,6 +76,17 @@ export default function StaffOrdersPage() {
       toast('Failed to mark as paid', 'error');
     }
     setCashingId(null);
+  }
+
+  async function handleAssignDelivery(deliveryStaffId: string, notes?: string) {
+    if (!assignOrder) return;
+    const ok = await assignDelivery(assignOrder.id, deliveryStaffId, notes);
+    if (ok) {
+      toast('Delivery assigned successfully', 'success');
+      setAssignOpen(false);
+      setAssignOrder(null);
+      refetch();
+    }
   }
 
   return (
@@ -200,7 +217,18 @@ export default function StaffOrdersPage() {
                                 {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : action.label}
                               </Button>
                             ))}
-                            {/* Mark cash paid — for unpaid, non-cancelled orders */}
+                            {/* Assign delivery — for delivery orders that are confirmed/processing */}
+                    {order.deliveryMethod === 'delivery' &&
+                     ['confirmed','processing'].includes(order.orderStatus) && (
+                      <Button
+                        variant="outline" size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => { setAssignOrder(order); setAssignError(null); setAssignOpen(true); }}
+                      >
+                        🚚 Assign
+                      </Button>
+                    )}
+                    {/* Mark cash paid — for unpaid, non-cancelled orders */}
                             {order.paymentStatus === 'unpaid' && order.orderStatus !== 'cancelled' && (
                               <Button
                                 variant="outline" size="sm"
@@ -244,6 +272,15 @@ export default function StaffOrdersPage() {
           )}
         </CardContent>
       </Card>
+      {/* Assign Delivery Modal */}
+      <AssignDeliveryModal
+        open={assignOpen}
+        onClose={() => { setAssignOpen(false); setAssignOrder(null); }}
+        onSubmit={handleAssignDelivery}
+        isSubmitting={isAssigning}
+        order={assignOrder}
+        serverError={assignError}
+      />
     </div>
   );
 }

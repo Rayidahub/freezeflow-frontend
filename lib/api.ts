@@ -19,9 +19,6 @@ import type {
   CustomerUser,
   PlaceOrderDto,
   OrderSummary,
-  Payment,
-  InitializePaymentResponse,
-  VerifyPaymentResponse,
 } from '@/types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -282,9 +279,18 @@ export const healthApi = {
   check: () => fetchApi<{ status: string; timestamp: string }>('/health'),
 };
 
+export default fetchApi;
+
 // ─── Payment API (Sprint 5) ───────────────────────────────────────────────────
 
+import type {
+  Payment,
+  InitializePaymentResponse,
+  VerifyPaymentResponse,
+} from '@/types';
+
 export const paymentApi = {
+  // Customer: get Paystack URL for an order
   initialize: (token: string, orderId: string) =>
     fetchApi<InitializePaymentResponse>('/payments/initialize', {
       method: 'POST',
@@ -292,15 +298,18 @@ export const paymentApi = {
       body: JSON.stringify({ orderId }),
     }),
 
+  // Customer: verify after Paystack redirect
   verify: (token: string, reference: string) =>
     fetchApi<VerifyPaymentResponse>(
       `/payments/verify?reference=${encodeURIComponent(reference)}`,
       { token }
     ),
 
+  // Customer: get payment record for an order
   getByOrder: (token: string, orderId: string) =>
     fetchApi<Payment | null>(`/payments/order/${orderId}`, { token }),
 
+  // Staff: mark cash order as paid
   markCash: (token: string, orderId: string) =>
     fetchApi<{ orderId: string; reference: string }>(
       `/payments/cash/${orderId}`,
@@ -308,4 +317,29 @@ export const paymentApi = {
     ),
 };
 
-export default fetchApi;
+// ─── Delivery API (Sprint 6) ──────────────────────────────────────────────────
+
+import type {
+  DeliveryStaffMember, DeliveryAssignment, OrderStatusHistoryEntry,
+} from '@/types';
+
+export const deliveryApi = {
+  getStaff: (token: string) =>
+    fetchApi<DeliveryStaffMember[]>('/delivery/staff', { token }),
+
+  assign: (token: string, data: { orderId: string; deliveryStaffId: string; notes?: string }) =>
+    fetchApi<DeliveryAssignment>('/delivery/assign', {
+      method: 'POST', token, body: JSON.stringify(data),
+    }),
+
+  getMyDeliveries: (token: string, status?: string) => {
+    const qs = status ? `?status=${status}` : '';
+    return fetchApi<Order[]>(`/delivery/my-deliveries${qs}`, { token });
+  },
+
+  getByOrder: (token: string, orderId: string) =>
+    fetchApi<DeliveryAssignment>(`/delivery/order/${orderId}`, { token }),
+
+  getHistory: (token: string, orderId: string) =>
+    fetchApi<OrderStatusHistoryEntry[]>(`/delivery/history/${orderId}`, { token }),
+};
