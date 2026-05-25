@@ -144,14 +144,14 @@ export default function ProductionPage() {
       </div>
 
       {/* Period selector tabs */}
-      <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 w-fit">
+      <div className="flex items-center gap-1 rounded-2xl border border-border bg-white/60 backdrop-blur-sm p-1 w-fit shadow-sm">
         {(['today', 'week', 'month', 'all'] as Period[]).map((p) => (
           <button
             key={p}
             onClick={() => { setPeriod(p); setPage(1); }}
             className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${
               period === p
-                ? 'bg-background shadow-sm text-foreground'
+                ? 'bg-white shadow-md text-foreground font-semibold'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -164,7 +164,7 @@ export default function ProductionPage() {
       <ProductionSummaryCards summary={summary} isLoading={summaryLoading} />
 
       {/* Date range filter */}
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-white/70 backdrop-blur-sm p-4 shadow-sm">
         <Calendar className="h-4 w-4 text-muted-foreground self-center mt-5" />
         <div className="space-y-1.5">
           <Label className="text-xs">From</Label>

@@ -29,12 +29,12 @@ function KpiCard({
   const hasChange = change !== null;
 
   return (
-    <Card>
+    <Card className="rounded-2xl border-0 shadow-sm card-hover overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {label}
         </CardTitle>
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${colorBg}`}>
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${colorBg} shadow-sm`}>
           <Icon className={`h-4 w-4 ${colorText}`} />
         </div>
       </CardHeader>

@@ -37,7 +37,7 @@ function StaffShell({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden page-gradient">
       {/* Desktop sidebar */}
       <Sidebar className="hidden lg:flex" />
 
@@ -57,7 +57,7 @@ function StaffShell({ children }: { children: React.ReactNode }) {
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 space-y-0">
           {children}
         </main>
       </div>

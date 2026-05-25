@@ -77,12 +77,12 @@ export function ProductionSummaryCards({ summary, isLoading }: ProductionSummary
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <Card key={card.label}>
+          <Card key={card.label} className="rounded-2xl border-0 shadow-sm card-hover overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs font-medium text-muted-foreground">
                 {card.label}
               </CardTitle>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${card.bg}`}>
+              <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${card.bg} shadow-sm`}>
                 <Icon className={`h-4 w-4 ${card.color}`} />
               </div>
             </CardHeader>
