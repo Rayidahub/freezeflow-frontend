@@ -13,6 +13,7 @@ import { Badge }    from '@/components/ui/badge';
 import { Button }   from '@/components/ui/button';
 import { formatNaira } from '@/lib/utils';
 import { useProductionSummary, useProductionList } from '@/hooks/useProduction';
+import { useOrderSummary } from '@/hooks/useStaffOrders';
 import { useExpenseSummary } from '@/hooks/useExpenses';
 import { useAuth } from '@/context/AuthContext';
 
@@ -111,6 +112,7 @@ export default function DashboardPage() {
   const { summary: todayExp,   isLoading: todayExpLoading }   = useExpenseSummary('today');
   const { summary: monthExp,   isLoading: monthExpLoading }   = useExpenseSummary('month');
   const { logs: recentLogs,    isLoading: logsLoading }       = useProductionList({ limit: 5 });
+  const { summary: orderSum,   isLoading: orderSumLoading }   = useOrderSummary();
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -245,6 +247,28 @@ export default function DashboardPage() {
                 colorText="text-emerald-600" colorBg="bg-emerald-50"
                 subLabel="this month"
               />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── ORDERS SNAPSHOT ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Orders</p>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/admin/orders">View all <ArrowRight className="h-3.5 w-3.5 ml-1" /></Link>
+          </Button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-4">
+          {orderSumLoading ? (
+            [...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)
+          ) : (
+            <>
+              <StatCard label="Pending"       value={String(orderSum?.totalPending ?? 0)} icon={ShoppingCart} colorText="text-amber-600"  colorBg="bg-amber-50"  subLabel="awaiting action" />
+              <StatCard label="Active"         value={String(orderSum?.totalActive  ?? 0)} icon={ShoppingCart} colorText="text-blue-600"   colorBg="bg-blue-50"   subLabel="being processed" />
+              <StatCard label="Delivered"      value={String(orderSum?.byStatus?.delivered ?? 0)} icon={ShoppingCart} colorText="text-emerald-600" colorBg="bg-emerald-50" subLabel="completed" />
+              <StatCard label="Order Revenue"  value={formatNaira(orderSum?.totalRevenue ?? 0)} icon={DollarSign} colorText="text-violet-600" colorBg="bg-violet-50" subLabel="paid orders" />
             </>
           )}
         </div>

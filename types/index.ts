@@ -268,3 +268,98 @@ export interface OrderStatusHistoryEntry {
   note?:       string | null;
   createdAt:   string;
 }
+
+// ─── Analytics (Sprint 7) ─────────────────────────────────────────────────────
+
+export type AnalyticsPeriod = '7d' | '30d' | '90d' | 'year';
+
+export interface KpiValue {
+  value:  number;
+  prev:   number;
+  change: number | null;
+}
+
+export interface KpiData {
+  period: string;
+  kpis: {
+    revenue:        KpiValue;
+    expenses:       KpiValue;
+    netProfit:      KpiValue;
+    bagsProduced:   KpiValue;
+    bagsSold:       KpiValue;
+    damagedBags:    KpiValue;
+    ordersPlaced:   KpiValue;
+    orderRevenue:   KpiValue;
+    newCustomers:   KpiValue;
+    totalCustomers: KpiValue;
+    currentStock:   KpiValue;
+    productionDays: KpiValue;
+  };
+}
+
+export interface TrendPoint {
+  date:         string;
+  revenue:      number;
+  expenses:     number;
+  netProfit:    number;
+  bagsProduced: number;
+  bagsSold:     number;
+}
+
+export interface RevenueTrend {
+  period: string;
+  trend:  TrendPoint[];
+}
+
+export interface ExpenseBreakdownItem {
+  expenseType: ExpenseType;
+  amount:      number;
+  count:       number;
+  percentage:  number;
+}
+
+export interface ExpenseBreakdownData {
+  period:    string;
+  total:     number;
+  breakdown: ExpenseBreakdownItem[];
+}
+
+export interface OrderFunnelItem {
+  status:  string;
+  count:   number;
+  revenue: number;
+  pct:     number;
+}
+
+export interface OrderFunnelData {
+  period:     string;
+  total:      number;
+  byStatus:   OrderFunnelItem[];
+  byPayment:  { status: string; count: number; revenue: number }[];
+  byDelivery: { method: string; count: number; pct: number }[];
+}
+
+export interface ProductionEfficiency {
+  period:             string;
+  produced:           number;
+  sold:               number;
+  damaged:            number;
+  remaining:          number;
+  sellThroughRate:    number;
+  damageRate:         number;
+  avgDailyProduction: number;
+  avgDailySales:      number;
+  avgSellingPrice:    number;
+  productionDays:     number;
+}
+
+export interface TopCustomerEntry {
+  customer:   { id: string; fullName: string; email: string; phone: string } | undefined;
+  orderCount: number;
+  totalSpend: number;
+}
+
+export interface TopCustomersData {
+  period:    string;
+  customers: TopCustomerEntry[];
+}

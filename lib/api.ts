@@ -343,3 +343,31 @@ export const deliveryApi = {
   getHistory: (token: string, orderId: string) =>
     fetchApi<OrderStatusHistoryEntry[]>(`/delivery/history/${orderId}`, { token }),
 };
+
+// ─── Analytics API (Sprint 7) ─────────────────────────────────────────────────
+
+import type {
+  KpiData, RevenueTrend, ExpenseBreakdownData,
+  OrderFunnelData, ProductionEfficiency, TopCustomersData,
+  AnalyticsPeriod,
+} from '@/types';
+
+export const analyticsApi = {
+  getKpi: (token: string, period: AnalyticsPeriod = '30d') =>
+    fetchApi<KpiData>(`/analytics/kpi?period=${period}`, { token }),
+
+  getRevenueTrend: (token: string, period: AnalyticsPeriod = '30d') =>
+    fetchApi<RevenueTrend>(`/analytics/revenue-trend?period=${period}`, { token }),
+
+  getExpenseBreakdown: (token: string, period: AnalyticsPeriod = '30d') =>
+    fetchApi<ExpenseBreakdownData>(`/analytics/expense-breakdown?period=${period}`, { token }),
+
+  getOrderFunnel: (token: string, period: AnalyticsPeriod = '30d') =>
+    fetchApi<OrderFunnelData>(`/analytics/order-funnel?period=${period}`, { token }),
+
+  getProductionEfficiency: (token: string, period: AnalyticsPeriod = '30d') =>
+    fetchApi<ProductionEfficiency>(`/analytics/production-efficiency?period=${period}`, { token }),
+
+  getTopCustomers: (token: string, period: AnalyticsPeriod = '30d') =>
+    fetchApi<TopCustomersData>(`/analytics/top-customers?period=${period}`, { token }),
+};
